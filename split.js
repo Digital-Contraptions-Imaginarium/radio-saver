@@ -9,6 +9,7 @@ var async = require('async'),
 	_ = require('underscore'),
 	exec = require('child_process').exec,
 	path = require('path'),
+	tentativeFilename = require('./lib/tentative-filename'),
 	argv = require('yargs')
 		.demand([ 'in', 'out' ])
 		.argv;
@@ -33,22 +34,24 @@ tracks = tracks.filter(function (track) { return track.artist || track.title; })
 async.eachSeries(
 	tracks, 
 	function (track, callback) {
-		console.log(SOX_PATH + ' "' + argv.in + '" "' + path.join(argv.out, track.artist + ' - ' + track.title + '.mp3') + '" trim ' + track.timestamp + ' ' + track.duration);
-		exec(
-			SOX_PATH + ' "' + argv.in + '" "' + path.join(argv.out, track.artist + ' - ' + track.title + '.mp3') + '" trim ' + track.timestamp + ' ' + track.duration,
-			function (err, stdout, stderr) {
-				// remove the error messages to ignore from stderr
-				stderr = stderr.split('\n').filter(function (line) {
-					return !_.some(
-						[ '' ].concat(SOX_ERROR_MESSAGES_TO_IGNORE.map(function (errorMessage) { return SOX_PATH + ' ' + errorMessage; })),
-						function (errorMessage) {
-							return errorMessage === line;
-						})
-				}).join('\n');
-				// and print it if anything is left
-				if (stderr !== '') console.log(stderr);
-				callback(err);
-			});
+		tentativeFilename.tryFilename(path.join(argv.out, track.artist + ' - ' + track.title), 'mp3', function (err, filename) {
+			console.log(SOX_PATH + ' "' + argv.in + '" "' + filename + '" trim ' + track.timestamp + ' ' + track.duration);
+			exec(
+				SOX_PATH + ' "' + argv.in + '" "' + filename + '" trim ' + track.timestamp + ' ' + track.duration,
+				function (err, stdout, stderr) {
+					// remove the error messages to ignore from stderr
+					stderr = stderr.split('\n').filter(function (line) {
+						return !_.some(
+							[ '' ].concat(SOX_ERROR_MESSAGES_TO_IGNORE.map(function (errorMessage) { return SOX_PATH + ' ' + errorMessage; })),
+							function (errorMessage) {
+								return errorMessage === line;
+							})
+					}).join('\n');
+					// and print it if anything is left
+					if (stderr !== '') console.log(stderr);
+					callback(err);
+				});
+		});
 	},
 	function (err) {
 
