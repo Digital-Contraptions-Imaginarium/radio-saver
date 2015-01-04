@@ -20,7 +20,9 @@ var makeACompleteCD = function (callback) {
             function () {
                 // create a randomly sorted list of the available artists
                 if (artists.length === 0) {
+                    // select the remaining artists
                     artists = _.unique(tracks.map(function (t) { return t.artist; })));
+                    // shuffle them
                     artists = _.sample(artists, artists.length);
                 }
                 return !full;
@@ -29,7 +31,7 @@ var makeACompleteCD = function (callback) {
                 // get a random track from the next artist
                 var chosenTrack = _.sample(_.where(tracks, { 'artist': _.first(artists) }));
                 fs.stat(path.join(argv.from, chosenTrack.artist + ' - ' + chosenTrack.title + '.mp3'), function (err, stat) {
-                    trackSize = stat.size / 1000000.0;
+                    var trackSize = stat.size / 1000000.0;
                     // if there still room in the CD
                     if (totalSize + trackSize > MAX_CD_SIZE) {
                         callback(null);
