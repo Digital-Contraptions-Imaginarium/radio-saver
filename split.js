@@ -12,8 +12,19 @@ var async = require('async'),
 	tentativeFilename = require('./lib/tentative-filename'),
 	argv = require('yargs')
 		.demand([ 'in', 'out' ])
+		.default('left', 10) // seconds
+		.default('right', 30) // seconds
 		.argv;
 
+// read the list of songs to be ignored
+var toBeIgnored = !argv.ignore ? [ ] : fs
+	.readFileSync(path.join(argv.out, 'ignore.txt'), { 'encoding': 'utf8' })
+	.split('\n')
+	.reduce(function (memo, line) { 
+		line = line.trim();
+		if ((line !== '') && !line.match(/^#/)) memo = memo.concat(line);
+		return memo;
+	}, [ ]);
 // read the tracks metadata
 var tracks = fs
 	.readFileSync(argv.in + '.jsonl', { 'encoding': 'utf8' })
@@ -34,24 +45,30 @@ tracks = tracks.filter(function (track) { return track.artist || track.title; })
 async.eachSeries(
 	tracks, 
 	function (track, callback) {
-		tentativeFilename.tryFilename(path.join(argv.out, track.artist + ' - ' + track.title), 'mp3', function (err, filename) {
-			console.log(SOX_PATH + ' "' + argv.in + '" "' + filename + '" trim ' + track.timestamp + ' ' + track.duration);
-			exec(
-				SOX_PATH + ' "' + argv.in + '" "' + filename + '" trim ' + track.timestamp + ' ' + track.duration,
-				function (err, stdout, stderr) {
-					// remove the error messages to ignore from stderr
-					stderr = stderr.split('\n').filter(function (line) {
-						return !_.some(
-							[ '' ].concat(SOX_ERROR_MESSAGES_TO_IGNORE.map(function (errorMessage) { return SOX_PATH + ' ' + errorMessage; })),
-							function (errorMessage) {
-								return errorMessage === line;
-							})
-					}).join('\n');
-					// and print it if anything is left
-					if (stderr !== '') console.log(stderr);
-					callback(err);
-				});
-		});
+		var basename = track.artist + ' - ' + track.title;
+		if (!_.contains(toBeIgnored, basename)) {
+			tentativeFilename.tryFilename(path.join(argv.out, basename), 'mp3', function (err, filename) {
+				var command = SOX_PATH + ' "' + argv.in + '" "' + filename + '" trim ' + Math.max(0, track.timestamp - parseInt(argv.left)) + ' ' + (track.duration + parseInt(argv.left) + parseInt(argv.right));
+				console.log(command);
+				exec(
+					command,
+					function (err, stdout, stderr) {
+						// remove the error messages to ignore from stderr
+						stderr = stderr.split('\n').filter(function (line) {
+							return !_.some(
+								[ '' ].concat(SOX_ERROR_MESSAGES_TO_IGNORE.map(function (errorMessage) { return SOX_PATH + ' ' + errorMessage; })),
+								function (errorMessage) {
+									return errorMessage === line;
+								})
+						}).join('\n');
+						// and print it if anything is left
+						if (stderr !== '') console.log(stderr);
+						callback(err);
+					});
+			});
+		} else {
+			callback(null);
+		}
 	},
 	function (err) {
 
