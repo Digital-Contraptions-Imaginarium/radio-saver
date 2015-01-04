@@ -4,11 +4,12 @@ var async = require('async'),
     _ = require('underscore'),
     argv = require('yargs')
         .demand([ 'from', 'to' ])
+        .default('size', 737) // Mb
         .argv;
 
 // number padding trick from http://stackoverflow.com/a/7254108
 var makeACompleteCD = function (callback) {
-    var MAX_CD_SIZE = 737, // Mb
+    var MAX_CD_SIZE = parseFloat(argv.size),
         artists = [ ],
         trackNo = 0,
         totalSize = 0,
@@ -21,11 +22,11 @@ var makeACompleteCD = function (callback) {
                 // create a randomly sorted list of the available artists
                 if (artists.length === 0) {
                     // select the remaining artists
-                    artists = _.unique(tracks.map(function (t) { return t.artist; })));
+                    artists = _.unique(tracks.map(function (t) { return t.artist; }));
                     // shuffle them
                     artists = _.sample(artists, artists.length);
                 }
-                return !full;
+                return !full && (artists.length > 0);
             },
             function (callback) {
                 // get a random track from the next artist
@@ -34,6 +35,7 @@ var makeACompleteCD = function (callback) {
                     var trackSize = stat.size / 1000000.0;
                     // if there still room in the CD
                     if (totalSize + trackSize > MAX_CD_SIZE) {
+                        full = true;
                         callback(null);
                     } else {
                         fs.copy(
