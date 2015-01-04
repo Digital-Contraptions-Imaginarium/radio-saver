@@ -18,7 +18,7 @@ var async = require('async'),
 
 // read the list of songs to be ignored
 var toBeIgnored = !argv.ignore ? [ ] : fs
-	.readFileSync(path.join(argv.out, 'ignore.txt'), { 'encoding': 'utf8' })
+	.readFileSync(argv.ignore, { 'encoding': 'utf8' })
 	.split('\n')
 	.reduce(function (memo, line) {
 		line = line.trim();
