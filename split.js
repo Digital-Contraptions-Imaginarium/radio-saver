@@ -12,6 +12,7 @@ var async = require('async'),
 	tentativeFilename = require('./lib/tentative-filename'),
 	argv = require('yargs')
 		.demand([ 'in', 'out' ])
+		.default('max', 3) // max no. of tracks with the same name
 		.default('left', 10) // seconds
 		.default('right', 30) // seconds
 		.argv;
@@ -47,25 +48,30 @@ async.eachSeries(
 	function (track, callback) {
 		var basename = track.artist + ' - ' + track.title;
 		if (!_.contains(toBeIgnored, basename)) {
-			tentativeFilename.tryFilename(path.join(argv.out, basename), 'mp3', function (err, filename) {
-				// TODO: if the specified trimming duration goes beyond the actual duration of the file, sox will return a warning apparently the trimming works anyway
-				var command = SOX_PATH + ' "' + argv.in + '" "' + filename + '" trim ' + Math.max(0, track.timestamp - parseInt(argv.left)) + ' ' + (track.duration + parseInt(argv.left) + parseInt(argv.right));
-				console.log(command);
-				exec(
-					command,
-					function (err, stdout, stderr) {
-						// remove the error messages to ignore from stderr
-						stderr = stderr.split('\n').filter(function (line) {
-							return !_.some(
-								[ '' ].concat(SOX_ERROR_MESSAGES_TO_IGNORE.map(function (errorMessage) { return SOX_PATH + ' ' + errorMessage; })),
-								function (errorMessage) {
-									return errorMessage === line;
-								})
-						}).join('\n');
-						// and print it if anything is left
-						if (stderr !== '') console.log(stderr);
-						callback(err);
-					});
+			tentativeFilename.tryFilename(path.join(argv.out, basename), 'mp3', parseInt(argv.max), function (err, filename) {
+				if (!filename) {
+					// too many duplicates
+					callback(null);
+				} else {
+					// TODO: if the specified trimming duration goes beyond the actual duration of the file, sox will return a warning apparently the trimming works anyway
+					var command = SOX_PATH + ' "' + argv.in + '" "' + filename + '" trim ' + Math.max(0, track.timestamp - parseInt(argv.left)) + ' ' + (track.duration + parseInt(argv.left) + parseInt(argv.right));
+					console.log(command);
+					exec(
+						command,
+						function (err, stdout, stderr) {
+							// remove the error messages to ignore from stderr
+							stderr = stderr.split('\n').filter(function (line) {
+								return !_.some(
+									[ '' ].concat(SOX_ERROR_MESSAGES_TO_IGNORE.map(function (errorMessage) { return SOX_PATH + ' ' + errorMessage; })),
+									function (errorMessage) {
+										return errorMessage === line;
+									})
+								}).join('\n');
+								// and print it if anything is left
+								if (stderr !== '') console.log(stderr);
+								callback(err);
+							});
+				}
 			});
 		} else {
 			callback(null);
